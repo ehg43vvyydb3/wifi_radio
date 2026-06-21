@@ -2,3 +2,5 @@ wifi_radio/secrets.h
 serial_log.txt
 build/
 .arduino15/
+speaker_test/
+btn_test/
