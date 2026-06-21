@@ -13,10 +13,9 @@
 #define I2S_LRC    16
 #define I2S_DOUT    7
 #define TFT_BL     42
-#define BTN_VOLD   12  // Volume Down
-#define BTN_VOLU   11  // Volume Up
-#define BTN_NEXT   13  // Next channel
-#define BTN_PLAY   14  // Play / Stop
+#define POT_VOL     1  // 볼륨 포텐셔미터 (ADC1)
+#define BTN_PLAY   13  // 재생/정지 (액티브 HIGH, 풀다운)
+#define BTN_NEXT   14  // 다음 채널  (액티브 HIGH, 풀다운)
 
 // ── TFT ───────────────────────────────────────────────────────────────────────
 Arduino_DataBus *bus = new Arduino_HWSPI(40, 41, 21, 47, -1);
@@ -104,7 +103,7 @@ static void drawStatusMsg() {
     gfx->print(statusMsg);
     gfx->setTextColor(GREY);
     gfx->setCursor(4, 228);
-    gfx->print("[-] V  [OK] Play  [>] Next  [+] V");
+    gfx->print("[POT] Vol  [SW1] Play  [SW2] Next");
 }
 
 void drawAll() {
@@ -170,7 +169,7 @@ void startPlay(int idx) {
     setStatus("Buffering...");
 }
 
-// ── 버튼 헬퍼 ────────────────────────────────────────────────────────────────
+// ── 버튼 헬퍼 (액티브 HIGH / 풀다운) ─────────────────────────────────────────
 bool btnEdge(int pin) {
     if (digitalRead(pin) != LOW) return false;
     delay(25);
@@ -180,37 +179,15 @@ bool btnEdge(int pin) {
     return true;
 }
 
-// 볼륨: 논블로킹 + 디바운스. 방향이 바뀔 때 25ms 재확인 후 첫 동작.
-// 홀드 시 500ms 후 150ms 간격으로 반복.
-static int           volDir  = 0;   // -1, 0, +1
-static unsigned long volNext = 0;
+// ── 포텐셔미터 볼륨 (100ms 주기 폴링) ────────────────────────────────────────
+void checkPotVolume() {
+    static unsigned long lastT = 0;
+    if (millis() - lastT < 100) return;
+    lastT = millis();
 
-void checkVolButtons() {
-    bool vd  = (digitalRead(BTN_VOLD) == LOW);
-    bool vu  = (digitalRead(BTN_VOLU) == LOW);
-    int  dir = vd ? -1 : (vu ? +1 : 0);
-
-    if (dir == 0) { volDir = 0; return; }
-
-    unsigned long now = millis();
-
-    if (dir != volDir) {
-        // 새 버튼 감지 → 디바운스 확인
-        delay(25);
-        vd  = (digitalRead(BTN_VOLD) == LOW);
-        vu  = (digitalRead(BTN_VOLU) == LOW);
-        dir = vd ? -1 : (vu ? +1 : 0);
-        if (dir == 0) return;  // 노이즈였음, 무시
-
-        volDir  = dir;
-        volNext = now + 500;
-        curVol  = constrain(curVol + dir, 0, 21);
-        audio.setVolume(curVol);
-        drawStatusBar();
-    } else if (now >= volNext) {
-        // 홀드 반복
-        volNext = now + 150;
-        curVol  = constrain(curVol + dir, 0, 21);
+    int newVol = map(analogRead(POT_VOL), 0, 4095, 0, 21);
+    if (newVol != curVol) {
+        curVol = newVol;
         audio.setVolume(curVol);
         drawStatusBar();
     }
@@ -252,10 +229,8 @@ void setup() {
     gfx->setCursor(20, 105);
     gfx->print("WiFi connecting");
 
-    pinMode(BTN_VOLD, INPUT_PULLUP);
-    pinMode(BTN_VOLU, INPUT_PULLUP);
-    pinMode(BTN_NEXT, INPUT_PULLUP);
     pinMode(BTN_PLAY, INPUT_PULLUP);
+    pinMode(BTN_NEXT, INPUT_PULLUP);
 
     WiFi.begin(WIFI_SSID, WIFI_PASS);
     int dots = 0;
@@ -267,6 +242,7 @@ void setup() {
     Serial.println("\n[WiFi] " + WiFi.localIP().toString());
 
     audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
+    curVol = map(analogRead(POT_VOL), 0, 4095, 0, 21);  // 초기 볼륨을 포텐셔미터 위치로
     audio.setVolume(curVol);
 
     drawAll();
@@ -275,10 +251,7 @@ void setup() {
 // ── Loop ──────────────────────────────────────────────────────────────────────
 void loop() {
     audio.loop();
-
-    checkVolButtons();
-
-    if (volDir != 0) return;  // 볼륨 버튼 사용 중 → 다른 버튼 무시
+    checkPotVolume();
 
     if (btnEdge(BTN_NEXT)) {
         audio.stopSong();
