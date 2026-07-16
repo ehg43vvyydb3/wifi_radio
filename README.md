@@ -1,8 +1,139 @@
 # Wi-Fi Internet Radio
 
-ESP32-S3 기반 인터넷 라디오. 국내 주요 FM 방송 12개 채널을 HLS/AAC 스트리밍으로 수신하고 LCD에 채널 정보를 표시합니다.
+> ESP32-S3 기반 인터넷 라디오. 국내 주요 FM 방송 12개 채널을 HLS/AAC 스트리밍으로 수신하고 LCD에 채널 정보를 표시합니다.  
+> An ESP32-S3 internet radio that streams 12 Korean FM stations over HLS/AAC and shows channel info on an LCD.
 
-## 하드웨어
+[English](#english) · [한국어](#한국어)
+
+![platform](https://img.shields.io/badge/platform-ESP32--S3-E7352C?logo=espressif&logoColor=white)
+![arduino](https://img.shields.io/badge/Arduino_CLI-1.4.1-00979D?logo=arduino&logoColor=white)
+![display](https://img.shields.io/badge/display-ST7789_240×240-lightgrey)
+
+---
+
+## English
+
+### Hardware
+
+| Item | Spec |
+|------|------|
+| MCU | ESP32-S3-N16R8 (16MB Flash, 8MB OPI PSRAM) |
+| Display | 1.3" ST7789 240×240 IPS LCD |
+| Audio out | I2S mono amplifier (onboard) |
+| Volume | Potentiometer (ADC1 GPIO1) |
+| Buttons | 2× tactile switch (play/stop, next channel) |
+| Connection | USB-C (programming: USB OTG / COM4) |
+
+#### Pinout
+
+| Pin | Function |
+|-----|----------|
+| GPIO 1 | Volume potentiometer (ADC1) |
+| GPIO 7 | I2S DOUT (speaker) |
+| GPIO 13 | Button: play/stop (active LOW, pull-up) |
+| GPIO 14 | Button: next channel (active LOW, pull-up) |
+| GPIO 15 | I2S BCLK |
+| GPIO 16 | I2S LRC |
+| GPIO 21 | TFT SCK |
+| GPIO 40 | TFT DC |
+| GPIO 41 | TFT CS |
+| GPIO 42 | TFT backlight |
+| GPIO 45 | TFT RST |
+| GPIO 47 | TFT MOSI |
+
+### Software
+
+#### Toolchain
+
+- Arduino CLI 1.4.1
+- ESP32 Arduino Core 3.3.10 (`esp32:esp32`)
+
+#### Libraries
+
+| Library | Version | Purpose |
+|---------|---------|---------|
+| ESP32-audioI2S | 3.4.6 | HLS/AAC stream playback |
+| GFX Library for Arduino | 1.6.6 | ST7789 LCD driver |
+| ArduinoJson | 7.4.3 | KBS API JSON parsing |
+| Preferences | (ESP32 builtin) | Channel persistence in NVS |
+
+#### Build settings
+
+```
+FQBN: esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=huge_app,PSRAM=opi,USBMode=hwcdc,CDCOnBoot=cdc
+Upload Port: COM4 (USB OTG)
+```
+
+#### Compile & upload
+
+```bash
+arduino-cli compile --fqbn "esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=huge_app,PSRAM=opi,USBMode=hwcdc,CDCOnBoot=cdc" wifi_radio/
+arduino-cli upload --fqbn "esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=huge_app,PSRAM=opi,USBMode=hwcdc,CDCOnBoot=cdc" --port COM4 wifi_radio/
+```
+
+### Features
+
+#### Channel list
+
+| # | Channel | Stream type |
+|---|---------|-------------|
+| 1 | EBS FM | HLS (static) |
+| 2 | EBS Bandi | HLS (static) |
+| 3 | TBS FM | HLS (static) |
+| 4 | TBS eFM | HLS (static) |
+| 5 | CBS Music FM | HLS (static) |
+| 6 | CBS Standard FM | HLS (static) |
+| 7 | KBS 1FM | HLS (API) |
+| 8 | KBS 2FM | HLS (API) |
+| 9 | MBC FM4U | HLS (API) |
+| 10 | MBC Standard FM | HLS (API) |
+| 11 | SBS Power FM | HLS (API) |
+| 12 | SBS Love FM | HLS (API) |
+
+Static channels use a fixed stream URL; API channels resolve their HLS URL at
+runtime through the broadcaster's API.
+
+#### Controls
+
+| Input | Action |
+|-------|--------|
+| POT rotation | Volume (0–100 steps) |
+| SW1 (GPIO13) | Play / stop toggle |
+| SW2 (GPIO14) | Next channel |
+
+#### Screen layout
+
+```
+┌─────────────────────────────────┐
+│ 01/12  [══════════════  ] ||||  │  ← channel no. / volume slider / signal
+├─────────────────────────────────┤
+│                                 │
+│           EBS FM                │  ← station name
+│                                 │
+├─────────────────────────────────┤
+│ Playing / Buffering / song title│  ← status message
+│                                 │
+│ [POT] Vol  [SW1] Play  [SW2] Next│
+└─────────────────────────────────┘
+```
+
+- **Volume slider**: center of the status bar, cyan fill bar
+- **Signal strength**: right of the status bar, 4 levels (green = strong, grey = weak, red = disconnected)
+
+#### Automatic behavior
+
+| Feature | Behavior |
+|---------|----------|
+| Dual-AP selection | On boot, connects to the strongest-RSSI AP among those sharing the SSID |
+| Stream auto-reconnect | If playback drops, retries automatically after 3 seconds |
+| Channel memory | Last selected channel is stored in NVS and restored after reboot |
+| Low-power mode | At volume = 0, stops streaming, shuts down Wi-Fi, and turns the backlight off; reconnects automatically when the volume comes back up |
+
+---
+
+## 한국어
+
+### 하드웨어
 
 | 항목 | 사양 |
 |------|------|
@@ -13,7 +144,7 @@ ESP32-S3 기반 인터넷 라디오. 국내 주요 FM 방송 12개 채널을 HLS
 | 버튼 | 택타일 스위치 2개 (재생/정지, 다음 채널) |
 | 연결 | USB-C (프로그래밍: USB OTG / COM4) |
 
-### 핀 배치
+#### 핀 배치
 
 | 핀 | 기능 |
 |----|------|
@@ -30,14 +161,14 @@ ESP32-S3 기반 인터넷 라디오. 국내 주요 FM 방송 12개 채널을 HLS
 | GPIO 45 | TFT RST |
 | GPIO 47 | TFT MOSI |
 
-## 소프트웨어
+### 소프트웨어
 
-### 개발 환경
+#### 개발 환경
 
 - Arduino CLI 1.4.1
 - ESP32 Arduino Core 3.3.10 (`esp32:esp32`)
 
-### 라이브러리
+#### 라이브러리
 
 | 라이브러리 | 버전 | 용도 |
 |-----------|------|------|
@@ -46,23 +177,23 @@ ESP32-S3 기반 인터넷 라디오. 국내 주요 FM 방송 12개 채널을 HLS
 | ArduinoJson | 7.4.3 | KBS API JSON 파싱 |
 | Preferences | (ESP32 내장) | 채널 NVS 저장 |
 
-### 빌드 설정
+#### 빌드 설정
 
 ```
 FQBN: esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=huge_app,PSRAM=opi,USBMode=hwcdc,CDCOnBoot=cdc
 Upload Port: COM4 (USB OTG)
 ```
 
-### 컴파일 & 업로드
+#### 컴파일 & 업로드
 
 ```bash
 arduino-cli compile --fqbn "esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=huge_app,PSRAM=opi,USBMode=hwcdc,CDCOnBoot=cdc" wifi_radio/
 arduino-cli upload --fqbn "esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=huge_app,PSRAM=opi,USBMode=hwcdc,CDCOnBoot=cdc" --port COM4 wifi_radio/
 ```
 
-## 기능
+### 기능
 
-### 채널 목록
+#### 채널 목록
 
 | # | 채널 | 스트림 방식 |
 |---|------|------------|
@@ -79,7 +210,10 @@ arduino-cli upload --fqbn "esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=hug
 | 11 | SBS Power FM | HLS (API) |
 | 12 | SBS Love FM | HLS (API) |
 
-### 조작 방법
+정적 채널은 고정된 스트림 URL을 쓰고, API 채널은 방송사 API를 통해 실행 시점에
+HLS URL을 받아옵니다.
+
+#### 조작 방법
 
 | 입력 | 동작 |
 |------|------|
@@ -87,7 +221,7 @@ arduino-cli upload --fqbn "esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=hug
 | SW1 (GPIO13) | 재생 / 정지 토글 |
 | SW2 (GPIO14) | 다음 채널로 이동 |
 
-### 화면 레이아웃
+#### 화면 레이아웃
 
 ```
 ┌─────────────────────────────────┐
@@ -106,7 +240,7 @@ arduino-cli upload --fqbn "esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=hug
 - **볼륨 슬라이더**: 상태바 중앙, 시안색 채움 바
 - **신호 강도**: 상태바 우측, 4단계 막대 (녹색=강, 회색=약, 빨강=끊김)
 
-### 자동 기능
+#### 자동 기능
 
 | 기능 | 동작 |
 |------|------|
